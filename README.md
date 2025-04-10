@@ -4,14 +4,53 @@ A simple command-line tool for interacting with the Liquid Network, written in R
 
 ## Features
 
-- Generate Liquid addresses (unconfidential only)
-- Display information about Liquid assets
+- Generate Liquid addresses
+- Get information about Liquid assets
+- Transfer assets between addresses
+
+## Elements Core Setup (Required for Online Features)
+
+### Using Docker
+
+```bash
+# Create a directory for Elements data and configuration
+mkdir -p ~/elements-data/liquidtestnet
+
+# Create a proper configuration file
+cat > ~/elements-data/liquidtestnet/elements.conf << EOL
+# Global settings
+chain=liquidtestnet
+server=1
+validatepegin=0
+txindex=1
+daemon=0
+wallet=default
+
+# Network specific settings
+[liquidtestnet]
+rpcuser=liquiduser
+rpcpassword=yourpassword
+rpcallowip=0.0.0.0/0
+rpcbind=0.0.0.0:18891
+listen=1
+EOL
+
+# Run the Elements Core container
+docker run -d \
+  --name liquid-testnet \
+  -v ~/elements-data:/home/elements/.elements \
+  -p 18891:18891 \
+  -p 18892:18892 \
+  blockstream/elementsd:latest \
+  elementsd -conf=/home/elements/.elements/liquidtestnet/elements.conf
+```
 
 ## Installation
 
 ### Prerequisites
 
 - Rust and Cargo installed (https://rustup.rs/)
+- Elements Core node (required for online features)
 
 ### Building from Source
 
@@ -22,55 +61,44 @@ cd liquid-cli
 
 # Build the project
 cargo build --release
-
-# The binary will be available at target/release/liquid-cli
 ```
 
 ## Usage
 
-### Running the CLI
-
-You can run the CLI in two ways:
-
-#### Option 1: Using Cargo (recommended)
-```bash
-cargo run --release -- generate-address
-cargo run --release -- --network liquid generate-address
-```
-
-#### Option 2: Running the executable directly
-```bash
-# Navigate to the release directory
-cd target/release
-
-# Run the executable
-./liquid-cli generate-address
-./liquid-cli --network liquid generate-address
-```
-
 ### Generate a Liquid Address
 
 ```bash
-# Generate a new Liquid address (testnet by default)
-cargo run --release -- generate-address
-
-# Generate a new Liquid mainnet address
-cargo run --release -- --network liquid generate-address
+# Generate a new Liquid testnet address with RPC connection
+./target/release/liquid-cli --rpc-url http://localhost:18891 --rpc-user liquiduser --rpc-pass yourpassword generate-address
 ```
-
-The generated output includes:
-- Private key in WIF format
-- Public key
-- Unconfidential address
 
 ### Get Asset Information
 
 ```bash
-# Get information about a Liquid asset
-cargo run --release -- asset-info 6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d
+# First get labels to identify the asset
+./target/release/liquid-cli --no-wallet call dumpassetlabels
 
-# Use a custom API endpoint
-cargo run --release -- --api-url https://blockstream.info/liquidtestnet/api asset-info <asset-id>
+# Then get issuance information
+./target/release/liquid-cli --no-wallet call listissuances <asset-id>
+```
+
+### Transfer Assets
+
+```bash
+# Transfer assets between addresses
+./target/release/liquid-cli --rpc-url http://localhost:18891 --rpc-user liquiduser --rpc-pass yourpassword transfer --to <address> --asset <asset-id> --amount <amount>
+```
+
+### Generic RPC Call
+
+```bash
+# Make any RPC call to Elements Core
+./target/release/liquid-cli --rpc-url http://localhost:18891 --rpc-user liquiduser --rpc-pass yourpassword --no-wallet call <method> [params_json]
+
+# Examples:
+./target/release/liquid-cli --no-wallet call dumpassetlabels
+./target/release/liquid-cli --no-wallet call getblockchaininfo
+./target/release/liquid-cli --no-wallet call listissuances
 ```
 
 ## Network Options
@@ -78,21 +106,26 @@ cargo run --release -- --api-url https://blockstream.info/liquidtestnet/api asse
 - `--network liquid` - Use Liquid mainnet
 - `--network liquidtestnet` - Use Liquid testnet (default)
 
-## API Endpoint Options
+## RPC Options
 
-- `--api-url <url>` - Specify a custom API endpoint for asset information
+- `--rpc-url` - URL of the Elements Core RPC server (default: http://localhost:18891)
+- `--rpc-user` - Username for RPC authentication (default: liquiduser)
+- `--rpc-pass` - Password for RPC authentication (default: yourpassword)
 
 ## Technical Notes
 
-This tool uses the following Rust crates:
+### This tool uses the following Rust crates:
+
 - `elements` - For Liquid-specific functionality
 - `bitcoin` - For Bitcoin key handling
 - `clap` - For command-line argument parsing
-- `reqwest` - For API requests
+- `serde_json` - For JSON serialization/deserialization
+- `reqwest` - For HTTP requests to the RPC server
+- `anyhow` - For error handling
 
-## Future Enhancements
+## Competency Test Progress
 
-Potential future improvements:
-- Add support for confidential transactions
-- Implement wallet functionality
-- Add transaction building capabilities 
+* <input checked="" disabled="" type="checkbox"> Generate a Liquid address 
+* <input checked="" disabled="" type="checkbox"> Connect to Elements Core node
+* <input checked="" disabled="" type="checkbox"> Display asset information
+* <input checked="" disabled="" type="checkbox"> Transfer assets between addresses

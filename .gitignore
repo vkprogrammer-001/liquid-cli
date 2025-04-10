@@ -1,0 +1,32 @@
+# Rust build artifacts
+/target/
+Cargo.lock
+**/*.rs.bk
+
+# Docker and Elements data
+/elements-data/
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor and IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Debug and log files
+*.log
+debug/
+debug.test
+
+# Config files that might contain credentials
+.env
+*.config

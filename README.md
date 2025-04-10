@@ -125,7 +125,7 @@ cargo build --release
 
 ## Competency Test Progress
 
-* <input checked="" disabled="" type="checkbox"> Generate a Liquid address 
-* <input checked="" disabled="" type="checkbox"> Connect to Elements Core node
-* <input checked="" disabled="" type="checkbox"> Display asset information
-* <input checked="" disabled="" type="checkbox"> Transfer assets between addresses
+- [x] Generate a Liquid address 
+- [x] Connect to Elements Core node
+- [x] Display asset information
+- [x] Transfer assets between addresses

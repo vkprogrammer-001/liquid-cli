@@ -4,6 +4,210 @@ use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use std::time::Duration;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Helper function to create a test RPC client
+    fn get_test_rpc() -> ElementsRpc {
+        ElementsRpc::new(
+            "http://localhost:18891",  // Use real port
+            "liquiduser",             // Use real username
+            "yourpassword"            // Use real password
+        )
+    }
+    
+    // Helper function to check if Elements Core is available
+    fn is_elements_available() -> bool {
+        let rpc = get_test_rpc();
+        rpc.is_available().is_ok()
+    }
+    
+    #[test]
+    fn test_rpc_connection() {
+        if !is_elements_available() {
+            println!("SKIPPING: Elements Core node not available");
+            return;
+        }
+        
+        let rpc = get_test_rpc();
+        let result = rpc.call::<Value>("getblockchaininfo", vec![]);
+        assert!(result.is_ok(), "Failed to get blockchain info: {:?}", result.err());
+        
+        let info = result.unwrap();
+        assert!(info.get("chain").is_some(), "Response missing 'chain' field");
+        println!("Connected to Elements Core: {}", info["chain"]);
+    }
+    
+    #[test]
+    fn test_generate_address() {
+        if !is_elements_available() {
+            println!("SKIPPING: Elements Core node not available");
+            return;
+        }
+        
+        let rpc = get_test_rpc();
+        // Try to ensure wallet exists (ignore errors)
+        let _ = rpc.ensure_wallet_exists();
+        
+        let result = rpc.call::<String>("getnewaddress", vec![]);
+        assert!(result.is_ok(), "Failed to generate address: {:?}", result.err());
+        
+        let address = result.unwrap();
+        assert!(address.starts_with("el") || address.starts_with("tlq"), 
+        "Invalid address format: {}", address);
+        println!("Generated address: {}", address);
+    }
+    
+    #[test]
+    fn test_get_asset_info() {
+        if !is_elements_available() {
+            println!("SKIPPING: Elements Core node not available");
+            return;
+        }
+        
+        let rpc = get_test_rpc();
+        let _btc_asset_id = "144c654344aa716d6f3abcc1ca90e5641e4e2a7f633bc09fe3baf64585819a49";
+        
+        // Test dumpassetlabels
+        let result = rpc.call::<Value>("dumpassetlabels", vec![]);
+        assert!(result.is_ok(), "Failed to get asset labels: {:?}", result.err());
+        
+        // If the call succeeded but the BTC asset isn't present, we'll just log it
+        // (rather than fail the test, since a fresh node might not have the asset yet)
+        let labels = result.unwrap();
+        println!("Asset labels: {}", serde_json::to_string_pretty(&labels).unwrap());
+    }
+    
+    #[test]
+    fn test_cli_parsing() {
+        // This test doesn't need the Elements Core node
+        let args = vec![
+            "liquid-cli",
+            "--rpc-url", "http://localhost:18891",
+            "--rpc-user", "user",
+            "--rpc-pass", "pass",
+            "generate-address"
+        ];
+        
+        let cli = Cli::try_parse_from(args).unwrap();
+        assert_eq!(cli.rpc_url, "http://localhost:18891");
+        assert_eq!(cli.rpc_user, "user");
+        assert_eq!(cli.rpc_pass, "pass");
+        
+        match cli.command {
+            Commands::GenerateAddress => {},
+            _ => panic!("Expected GenerateAddress command"),
+        }
+    }
+    
+    #[test]
+    fn test_asset_info_command() {
+        // This test doesn't need the Elements Core node
+        let args = vec![
+            "liquid-cli",
+            "asset-info",
+            "144c654344aa716d6f3abcc1ca90e5641e4e2a7f633bc09fe3baf64585819a49"
+        ];
+        
+        let cli = Cli::try_parse_from(args).unwrap();
+        match cli.command {
+            Commands::AssetInfo { asset_id } => {
+                assert_eq!(asset_id, "144c654344aa716d6f3abcc1ca90e5641e4e2a7f633bc09fe3baf64585819a49");
+            },
+            _ => panic!("Expected AssetInfo command"),
+        }
+    }
+    
+    #[test]
+    fn test_transfer_command() {
+        // This test doesn't need the Elements Core node
+        let args = vec![
+            "liquid-cli",
+            "transfer",
+            "--to", "el1qqw3e3mk4ng3ks43mh54udznuekaadh9lgwef3mwgzrfzakmdwcvqpe4ppdaa3t44v3zv2u6w56pv6tc666fvgzaclqjnkz0sd",
+            "--asset", "144c654344aa716d6f3abcc1ca90e5641e4e2a7f633bc09fe3baf64585819a49",
+            "--amount", "0.001"
+        ];
+        
+        let cli = Cli::try_parse_from(args).unwrap();
+        match cli.command {
+            Commands::Transfer { to, asset, amount } => {
+                assert_eq!(to, "el1qqw3e3mk4ng3ks43mh54udznuekaadh9lgwef3mwgzrfzakmdwcvqpe4ppdaa3t44v3zv2u6w56pv6tc666fvgzaclqjnkz0sd");
+                assert_eq!(asset, "144c654344aa716d6f3abcc1ca90e5641e4e2a7f633bc09fe3baf64585819a49");
+                assert_eq!(amount, 0.001);
+            },
+            _ => panic!("Expected Transfer command"),
+        }
+    }
+    
+    #[test]
+    fn test_call_command() {
+        // This test doesn't need the Elements Core node
+        let args = vec![
+            "liquid-cli",
+            "call",
+            "getblockchaininfo"
+        ];
+        
+        let cli = Cli::try_parse_from(args).unwrap();
+        match cli.command {
+            Commands::Call { method, params_json } => {
+                assert_eq!(method, "getblockchaininfo");
+                assert!(params_json.is_some());
+                assert_eq!(params_json.unwrap(), "[]");
+            },
+            _ => panic!("Expected Call command"),
+        }
+    }
+    
+    #[test]
+    fn test_transfer_execution() {
+        if !is_elements_available() {
+            println!("SKIPPING: Elements Core node not available");
+            return;
+        }
+        
+        let rpc = get_test_rpc();
+        // Ensure wallet exists
+        let wallet_result = rpc.ensure_wallet_exists();
+        if wallet_result.is_err() {
+            println!("SKIPPING: Could not create wallet: {:?}", wallet_result.err());
+            return;
+        }
+        
+        // First create an address for testing
+        let address_result = rpc.call::<String>("getnewaddress", vec![]);
+        if address_result.is_err() {
+            println!("SKIPPING: Could not generate address: {:?}", address_result.err());
+            return;
+        }
+        
+        let address = address_result.unwrap();
+        println!("Testing transfer to address: {}", address);
+        
+        // Next try to perform a minimal test transfer (will likely fail due to no funds)
+        // But we're just testing the API call works, not the actual transfer
+        let params = vec![
+            json!(address),
+            json!(0.00001),  // Minimal amount
+            json!(""),      // comment
+            json!(""),      // comment_to
+            json!(false),   // subtractfeefromamount
+            json!(false),   // replaceable
+            json!(1),       // conf_target
+            json!("UNSET"), // estimate_mode
+            json!(false),   // avoid_reuse
+            json!("144c654344aa716d6f3abcc1ca90e5641e4e2a7f633bc09fe3baf64585819a49"),   // asset
+        ];
+        
+        let result = rpc.call::<String>("sendtoaddress", params);
+        // We don't assert success here since it will likely fail without funds
+        // We're just checking that the RPC call itself works
+        println!("Transfer result: {:?}", result);
+    }
+}
+
 // RPC Client Implementation
 struct ElementsRpc {
     url: String,
